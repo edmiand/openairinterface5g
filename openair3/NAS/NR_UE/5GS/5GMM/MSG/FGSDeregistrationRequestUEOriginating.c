@@ -13,13 +13,12 @@ int encode_fgs_deregistration_request_ue_originating(const fgs_deregistration_re
 {
   int encoded = 0;
   const FGSDeregistrationType *dt = &drr->deregistrationtype;
-  *(buffer + encoded) = ((dt->switchoff & 0x1) << 7) | ((dt->reregistration_required & 0x1) << 6) | ((dt->access_type & 0x3) << 4);
+  // De-registration type in bits 4-1, ngKSI in bits 8-5 (TS 24.501 §8.2.12.1, §9.11.3.20, §9.11.3.32)
+  *(buffer + encoded) = ((encode_nas_key_set_identifier(&drr->naskeysetidentifier, IEI_NULL) & 0x0f) << 4)
+                        | ((dt->switchoff & 0x1) << 3) | ((dt->reregistration_required & 0x1) << 2) | (dt->access_type & 0x3);
+  encoded++;
 
   int encode_result;
-  if ((encode_result = encode_nas_key_set_identifier(&drr->naskeysetidentifier, IEI_NULL)) < 0)
-    return encode_result;
-
-  encoded++;
 
   if ((encode_result = encode_5gs_mobile_identity(&drr->fgsmobileidentity, 0, buffer + encoded, len - encoded)) < 0)
     return encode_result;

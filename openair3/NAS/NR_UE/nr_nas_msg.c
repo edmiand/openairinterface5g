@@ -2184,7 +2184,9 @@ static void generateDeregistrationRequest(nr_ue_nas_t *nas, as_nas_info_t *initi
   mm_msg->deregistrationtype.switchoff = NORMAL_DEREGISTRATION; // note: in case this is changed to SWITCH_OFF, handle in unprotected_allowed
   mm_msg->deregistrationtype.reregistration_required = REREGISTRATION_NOT_REQUIRED;
   mm_msg->deregistrationtype.access_type = TGPP_ACCESS;
-  mm_msg->naskeysetidentifier.naskeysetidentifier = 1;
+  // ngKSI of the current 5G NAS security context (TS 24.501 §8.2.12.1); the AMF drops the request on a mismatch
+  mm_msg->naskeysetidentifier.tsc = NAS_KEY_SET_IDENTIFIER_NATIVE;
+  mm_msg->naskeysetidentifier.naskeysetidentifier = set_fgs_ksi(nas);
   size += 1;
   size += fill_guti(&mm_msg->fgsmobileidentity, nas->guti);
 

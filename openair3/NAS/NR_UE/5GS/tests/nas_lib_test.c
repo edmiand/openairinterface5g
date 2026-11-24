@@ -16,6 +16,7 @@
 #include "fgmm_authentication_failure.h"
 #include "FGSNASSecurityModeReject.h"
 #include "fgmm_authentication_reject.h"
+#include "FGSDeregistrationRequestUEOriginating.h"
 #include "nr_nas_msg.h"
 
 configmodule_interface_t *uniqCfg = NULL;
@@ -459,6 +460,40 @@ static void test_auth_reject(void)
   AssertFatal(eq_auth_reject(&orig, &dec), "test_auth_reject() failed: original and decoded messages do not match\n");
 }
 
+/** @brief Test the first octet of the UE-originating De-registration Request: De-registration type in bits 4-1,
+ *         ngKSI in bits 8-5 (TS 24.501 §8.2.12.1); the AMF rejects the request if the ngKSI is not its current one */
+static void test_deregistration_request(void)
+{
+  const struct {
+    FGSDeregistrationType type;
+    NasKeySetIdentifier ksi;
+    uint8_t octet;
+  } cases[] = {
+      {{.switchoff = NORMAL_DEREGISTRATION, .reregistration_required = REREGISTRATION_NOT_REQUIRED, .access_type = TGPP_ACCESS},
+       {.tsc = NAS_KEY_SET_IDENTIFIER_NATIVE, .naskeysetidentifier = 2},
+       0x21},
+      {{.switchoff = SWITCH_OFF, .reregistration_required = REREGISTRATION_REQUIRED, .access_type = TGPP_AND_NON_TGPP_ACCESS},
+       {.tsc = NAS_KEY_SET_IDENTIFIER_MAPPED, .naskeysetidentifier = 6},
+       0xef},
+  };
+  for (int i = 0; i < sizeofArray(cases); i++) {
+    fgs_deregistration_request_ue_originating_msg msg = {
+        .deregistrationtype = cases[i].type,
+        .naskeysetidentifier = cases[i].ksi,
+        .fgsmobileidentity.guti =
+            {.typeofidentity = FGS_MOBILE_IDENTITY_5G_GUTI, .amfregionid = 2, .amfsetid = 1, .tmsi = 0xc0000287},
+    };
+    uint8_t buffer[32] = {0};
+    int len = encode_fgs_deregistration_request_ue_originating(&msg, buffer, sizeof(buffer));
+    AssertFatal(len == 1 + 2 + 11, "case %d: unexpected De-registration Request length %d\n", i, len);
+    AssertFatal(buffer[0] == cases[i].octet,
+                "case %d: De-registration type/ngKSI octet 0x%02x, expected 0x%02x\n",
+                i,
+                buffer[0],
+                cases[i].octet);
+  }
+}
+
 /** @brief Test the plain 5GMM header enc/dec and the 5GSM header decoder; decoding must fail on a truncated header */
 static void test_msg_headers(void)
 {
@@ -501,6 +536,7 @@ int main()
   test_auth_failure();
   test_auth_reject();
   test_security_mode_reject();
+  test_deregistration_request();
   test_msg_headers();
   return 0;
 }
